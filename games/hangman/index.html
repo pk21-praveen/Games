@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hangman – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:2rem}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#game-area{display:flex;flex-direction:column;align-items:center;gap:.8rem;width:100%;max-width:480px;padding:0 1rem}
+#category{font-size:.8rem;color:#6c63ff;letter-spacing:.8px;text-transform:uppercase;background:rgba(108,99,255,.12);border:1px solid rgba(108,99,255,.25);padding:.25rem .8rem;border-radius:99px}
+svg#hangman{width:160px;height:160px}
+#word-display{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;margin:.3rem 0}
+.letter-slot{width:clamp(22px,7vw,32px);height:clamp(30px,9vw,42px);border-bottom:2px solid #6c63ff;display:flex;align-items:flex-end;justify-content:center;font-size:clamp(1rem,5vw,1.5rem);font-weight:700;color:#e0e0ff;padding-bottom:2px}
+#wrong-letters{min-height:1.4em;font-size:.9rem;color:#ff6584;text-align:center;letter-spacing:.2rem}
+#status{font-size:1rem;color:#8888aa;min-height:1.4em;text-align:center}
+#keyboard{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:380px;margin:.5rem 0}
+.key{width:clamp(30px,8.5vw,40px);height:clamp(34px,9.5vw,44px);background:#16213e;border:1px solid rgba(108,99,255,.3);border-radius:6px;color:#e0e0ff;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .12s,opacity .12s;display:flex;align-items:center;justify-content:center}
+.key:hover:not(:disabled){background:#1a1a2e;border-color:rgba(108,99,255,.5)}
+.key:disabled{opacity:.25;cursor:default}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.6rem 1.6rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;margin-top:.4rem;transition:opacity .2s}
+.btn:hover{opacity:.85}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:300px;line-height:1.5}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🪢 Hangman</h1>
+<div id="game-area">
+  <div id="category"></div>
+  <svg id="hangman" viewBox="0 0 160 160">
+    <!-- Gallows (always visible) -->
+    <line x1="20" y1="150" x2="140" y2="150" stroke="#6c63ff" stroke-width="4" stroke-linecap="round"/>
+    <line x1="40" y1="150" x2="40" y2="15" stroke="#6c63ff" stroke-width="4" stroke-linecap="round"/>
+    <line x1="40" y1="15" x2="100" y2="15" stroke="#6c63ff" stroke-width="4" stroke-linecap="round"/>
+    <line x1="100" y1="15" x2="100" y2="30" stroke="#6c63ff" stroke-width="4" stroke-linecap="round"/>
+    <!-- Body parts -->
+    <circle id="h-head" cx="100" cy="42" r="12" stroke="#ff6584" stroke-width="3" fill="none" style="display:none"/>
+    <line id="h-body" x1="100" y1="54" x2="100" y2="90" stroke="#ff6584" stroke-width="3" stroke-linecap="round" style="display:none"/>
+    <line id="h-larm" x1="100" y1="65" x2="80" y2="80" stroke="#ff6584" stroke-width="3" stroke-linecap="round" style="display:none"/>
+    <line id="h-rarm" x1="100" y1="65" x2="120" y2="80" stroke="#ff6584" stroke-width="3" stroke-linecap="round" style="display:none"/>
+    <line id="h-lleg" x1="100" y1="90" x2="82" y2="115" stroke="#ff6584" stroke-width="3" stroke-linecap="round" style="display:none"/>
+    <line id="h-rleg" x1="100" y1="90" x2="118" y2="115" stroke="#ff6584" stroke-width="3" stroke-linecap="round" style="display:none"/>
+  </svg>
+  <div id="word-display"></div>
+  <div id="wrong-letters"></div>
+  <div id="status">Guess letters below</div>
+  <div id="keyboard"></div>
+  <button class="btn" id="new-btn">New Word</button>
+</div>
+
+<div id="overlay">
+  <h2>🪢 Hangman</h2>
+  <p>Guess the hidden word one letter at a time.<br>You have <strong>6 wrong guesses</strong> before the man hangs!</p>
+  <button class="btn" id="start-btn">Start Game</button>
+</div>
+
+<script>
+const WORDS = [
+  {w:'elephant',c:'Animal'},{w:'piano',c:'Music'},{w:'volcano',c:'Nature'},{w:'umbrella',c:'Object'},
+  {w:'diamond',c:'Gem'},{w:'library',c:'Place'},{w:'dolphin',c:'Animal'},{w:'compass',c:'Tool'},
+  {w:'rainbow',c:'Nature'},{w:'theatre',c:'Place'},{w:'cactus',c:'Plant'},{w:'oxygen',c:'Science'},
+  {w:'pyramid',c:'Structure'},{w:'guitar',c:'Music'},{w:'journey',c:'Concept'},{w:'whisper',c:'Action'},
+  {w:'blizzard',c:'Weather'},{w:'caterpillar',c:'Animal'},{w:'frozen',c:'State'},{w:'giraffe',c:'Animal'},
+  {w:'horizon',c:'Nature'},{w:'island',c:'Geography'},{w:'jungle',c:'Place'},{w:'kingdom',c:'Concept'},
+  {w:'lantern',c:'Object'},{w:'mango',c:'Food'},{w:'nebula',c:'Space'},{w:'octopus',c:'Animal'},
+  {w:'penguin',c:'Animal'},{w:'quartz',c:'Mineral'},{w:'rocket',c:'Space'},{w:'salmon',c:'Animal'},
+  {w:'tornado',c:'Weather'},{w:'ukulele',c:'Music'},{w:'vampire',c:'Fiction'},{w:'walrus',c:'Animal'},
+  {w:'xylophone',c:'Music'},{w:'yellow',c:'Color'},{w:'zebra',c:'Animal'},{w:'abstract',c:'Art'},
+  {w:'butterfly',c:'Animal'},{w:'chocolate',c:'Food'},{w:'detective',c:'Role'},{w:'emerald',c:'Gem'},
+  {w:'fantasy',c:'Genre'},{w:'glacier',c:'Nature'},{w:'hamster',c:'Animal'},{w:'illusion',c:'Concept'},
+  {w:'jaguar',c:'Animal'},{w:'koala',c:'Animal'}
+];
+
+const PARTS = ['h-head','h-body','h-larm','h-rarm','h-lleg','h-rleg'];
+const catEl = document.getElementById('category');
+const wordEl = document.getElementById('word-display');
+const wrongEl = document.getElementById('wrong-letters');
+const statusEl = document.getElementById('status');
+const kbEl = document.getElementById('keyboard');
+const overlay = document.getElementById('overlay');
+
+let word, guessed, wrong, gameOver;
+
+function newGame() {
+  const entry = WORDS[Math.floor(Math.random()*WORDS.length)];
+  word = entry.w; catEl.textContent = 'Category: '+entry.c;
+  guessed = new Set(); wrong = 0; gameOver = false;
+  PARTS.forEach(id=>document.getElementById(id).style.display='none');
+  render();
+  kbEl.querySelectorAll('button').forEach(b=>b.disabled=false);
+  statusEl.textContent = 'Guess a letter!';
+  overlay.style.display='none';
+}
+
+function render() {
+  wordEl.innerHTML = '';
+  for (const ch of word) {
+    const d = document.createElement('div');
+    d.className = 'letter-slot';
+    d.textContent = guessed.has(ch) ? ch.toUpperCase() : '';
+    wordEl.appendChild(d);
+  }
+  wrongEl.textContent = wrong>0 ? [...guessed].filter(c=>!word.includes(c)).map(c=>c.toUpperCase()).join(' ') : '';
+}
+
+function guess(letter) {
+  if (gameOver || guessed.has(letter)) return;
+  guessed.add(letter);
+  kbEl.querySelectorAll('button').forEach(b=>{ if(b.dataset.k===letter) b.disabled=true; });
+  if (!word.includes(letter)) {
+    document.getElementById(PARTS[wrong]).style.display='';
+    wrong++;
+    if (wrong>=6) { gameOver=true; render(); statusEl.textContent='You lost! The word was: '+word.toUpperCase(); return; }
+  }
+  render();
+  if ([...word].every(c=>guessed.has(c))) {
+    gameOver=true;
+    statusEl.textContent='🎉 You got it! "'+word.toUpperCase()+'"';
+  }
+}
+
+// Build keyboard
+'abcdefghijklmnopqrstuvwxyz'.split('').forEach(k=>{
+  const b = document.createElement('button');
+  b.className='key'; b.textContent=k.toUpperCase(); b.dataset.k=k;
+  b.addEventListener('click',()=>guess(k));
+  kbEl.appendChild(b);
+});
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(/^[a-z]$/.test(k)) guess(k);
+});
+
+document.getElementById('start-btn').addEventListener('click', newGame);
+document.getElementById('new-btn').addEventListener('click', newGame);
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pong – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#score-display{margin:.5rem 0 .8rem;font-size:1.1rem;color:#8888aa}
+canvas{border:2px solid rgba(108,99,255,.4);border-radius:8px;background:#0f0f1a;touch-action:none;max-width:100%}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:320px;line-height:1.5}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.7rem 2rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.85}
+#touch-zones{display:none;width:100%;max-width:480px;flex-direction:row;gap:.5rem;margin-top:.5rem}
+.tz{flex:1;background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);border-radius:10px;padding:1.2rem .5rem;text-align:center;font-size:.85rem;color:#6c63ff;user-select:none;-webkit-user-select:none;touch-action:none}
+@media(hover:none){#touch-zones{display:flex}}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🏓 Pong</h1>
+<div id="score-display">Player: <span id="ps">0</span> &nbsp;|&nbsp; AI: <span id="as">0</span></div>
+<canvas id="c"></canvas>
+<div id="touch-zones">
+  <div class="tz" id="tz-up">▲ UP</div>
+  <div class="tz" id="tz-down">▼ DOWN</div>
+</div>
+
+<div id="overlay">
+  <h2>🏓 Pong</h2>
+  <p>W/S or ▲/▼ keys to move your paddle.<br>On mobile use the touch buttons below.<br>First to <strong>7 points</strong> wins!</p>
+  <button class="btn" id="start-btn">Start Game</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const overlayH2 = overlay.querySelector('h2');
+const overlayP = overlay.querySelector('p');
+const startBtn = document.getElementById('start-btn');
+
+let W, H, paddleH, paddleW, ballR;
+function resize() {
+  const size = Math.min(window.innerWidth - 16, 480);
+  W = canvas.width = size;
+  H = canvas.height = Math.round(size * 0.6);
+  paddleH = H * 0.22; paddleW = W * 0.022; ballR = W * 0.018;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+let playerY, aiY, ball, pScore, aScore, running = false, keys = {};
+
+function init() {
+  playerY = (H - paddleH) / 2;
+  aiY = (H - paddleH) / 2;
+  ball = { x: W/2, y: H/2, vx: (Math.random()>.5?1:-1)*W*0.007, vy: (Math.random()>.5?1:-1)*H*0.006 };
+  pScore = 0; aScore = 0;
+  document.getElementById('ps').textContent = 0;
+  document.getElementById('as').textContent = 0;
+}
+
+function resetBall(dir) {
+  ball = { x: W/2, y: H/2, vx: dir*W*0.007, vy: (Math.random()>.5?1:-1)*H*0.006 };
+}
+
+document.addEventListener('keydown', e => { keys[e.key] = true; });
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Touch zones
+const tzUp = document.getElementById('tz-up');
+const tzDn = document.getElementById('tz-down');
+tzUp.addEventListener('touchstart', e => { e.preventDefault(); keys['w'] = true; }, {passive:false});
+tzUp.addEventListener('touchend', e => { keys['w'] = false; });
+tzDn.addEventListener('touchstart', e => { e.preventDefault(); keys['s'] = true; }, {passive:false});
+tzDn.addEventListener('touchend', e => { keys['s'] = false; });
+
+// Touch drag on canvas
+let touchStartY = null;
+canvas.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, {passive:true});
+canvas.addEventListener('touchmove', e => {
+  if (touchStartY === null) return;
+  const dy = e.touches[0].clientY - touchStartY;
+  touchStartY = e.touches[0].clientY;
+  playerY = Math.max(0, Math.min(H - paddleH, playerY + dy));
+}, {passive:true});
+
+const speed = () => H * 0.012;
+
+function update() {
+  // Player move
+  if (keys['w'] || keys['W'] || keys['ArrowUp']) playerY = Math.max(0, playerY - speed());
+  if (keys['s'] || keys['S'] || keys['ArrowDown']) playerY = Math.min(H - paddleH, playerY + speed());
+
+  // AI: follow ball center with delay
+  const aiCenter = aiY + paddleH/2;
+  const diff = ball.y - aiCenter;
+  const aiSpeed = H * 0.008;
+  if (Math.abs(diff) > 2) aiY += Math.sign(diff) * Math.min(aiSpeed, Math.abs(diff));
+  aiY = Math.max(0, Math.min(H - paddleH, aiY));
+
+  ball.x += ball.vx; ball.y += ball.vy;
+
+  // Walls
+  if (ball.y - ballR < 0) { ball.y = ballR; ball.vy *= -1; }
+  if (ball.y + ballR > H) { ball.y = H - ballR; ball.vy *= -1; }
+
+  // Player paddle
+  const px = paddleW + ballR;
+  if (ball.x - ballR < px && ball.y > playerY && ball.y < playerY + paddleH && ball.vx < 0) {
+    ball.x = px; ball.vx *= -1.05;
+    ball.vy += (ball.y - (playerY + paddleH/2)) * 0.1;
+    if (Math.abs(ball.vx) > W*0.018) ball.vx = Math.sign(ball.vx)*W*0.018;
+  }
+
+  // AI paddle
+  const ax = W - paddleW - ballR;
+  if (ball.x + ballR > ax && ball.y > aiY && ball.y < aiY + paddleH && ball.vx > 0) {
+    ball.x = ax; ball.vx *= -1.05;
+    if (Math.abs(ball.vx) > W*0.018) ball.vx = Math.sign(ball.vx)*W*0.018;
+  }
+
+  // Score
+  if (ball.x < 0) { aScore++; document.getElementById('as').textContent = aScore; if(aScore>=7) endGame(false); else resetBall(1); }
+  if (ball.x > W) { pScore++; document.getElementById('ps').textContent = pScore; if(pScore>=7) endGame(true); else resetBall(-1); }
+}
+
+function endGame(win) {
+  running = false;
+  overlayH2.textContent = win ? '🎉 You Win!' : '😔 AI Wins';
+  overlayP.textContent = `Final score: ${pScore} – ${aScore}`;
+  startBtn.textContent = 'Play Again';
+  overlay.style.display = 'flex';
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  // Midline
+  ctx.setLineDash([H*0.04, H*0.04]);
+  ctx.strokeStyle = 'rgba(108,99,255,.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Paddles
+  ctx.fillStyle = '#6c63ff';
+  ctx.beginPath(); roundRect(ctx, 4, playerY, paddleW, paddleH, 4); ctx.fill();
+  ctx.fillStyle = '#ff6584';
+  ctx.beginPath(); roundRect(ctx, W-paddleW-4, aiY, paddleW, paddleH, 4); ctx.fill();
+
+  // Ball
+  ctx.fillStyle = '#e0e0ff';
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, ballR, 0, Math.PI*2); ctx.fill();
+}
+
+function roundRect(c,x,y,w,h,r){c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);}
+
+function loop() {
+  if (!running) return;
+  update(); draw();
+  requestAnimationFrame(loop);
+}
+
+startBtn.addEventListener('click', () => {
+  init(); running = true;
+  overlay.style.display = 'none';
+  loop();
+});
+</script>
+</body>
+</html>

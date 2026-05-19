@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sliding Puzzle – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:2rem}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#hud{display:flex;gap:2rem;margin:.6rem 0 .8rem;font-size:1rem;color:#8888aa}
+#hud strong{color:#e0e0ff}
+#size-sel{display:flex;gap:.5rem;margin-bottom:.8rem}
+.size-btn{padding:.35rem .9rem;border-radius:8px;border:1px solid rgba(108,99,255,.35);background:transparent;color:#8888aa;font-size:.85rem;cursor:pointer;transition:all .15s}
+.size-btn.active,.size-btn:hover{background:rgba(108,99,255,.2);color:#6c63ff;border-color:#6c63ff}
+#puzzle{display:grid;gap:4px;touch-action:none}
+.tile{background:#16213e;border:2px solid rgba(108,99,255,.3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:clamp(1.2rem,5vw,2rem);font-weight:700;color:#e0e0ff;cursor:pointer;transition:background .12s,transform .1s;user-select:none;-webkit-user-select:none}
+.tile:hover{background:#1a1a2e;border-color:rgba(108,99,255,.5)}
+.tile.empty{background:transparent;border-color:transparent;cursor:default}
+.tile.highlight{background:rgba(108,99,255,.2)}
+#status{font-size:1rem;color:#8888aa;min-height:1.4em;margin:.5rem 0;text-align:center}
+.controls{display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.85}
+.btn.sec{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);color:#6c63ff}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:300px;line-height:1.5}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🧩 Sliding Puzzle</h1>
+<div id="hud">
+  <div>Moves: <strong id="moves">0</strong></div>
+  <div>Time: <strong id="timer">0:00</strong></div>
+  <div>Best: <strong id="best">–</strong></div>
+</div>
+<div id="size-sel">
+  <button class="size-btn" data-n="3">3×3</button>
+  <button class="size-btn active" data-n="4">4×4</button>
+</div>
+<div id="puzzle"></div>
+<div id="status">Slide tiles into numerical order!</div>
+<div class="controls">
+  <button class="btn" id="shuffle-btn">Shuffle</button>
+  <button class="btn sec" id="solve-hint-btn">Hint</button>
+</div>
+
+<div id="overlay">
+  <h2>🧩 Sliding Puzzle</h2>
+  <p>Slide numbered tiles into order (1, 2, 3… with blank at the end).<br>Pick a size and press Shuffle to begin!</p>
+  <button class="btn" id="start-btn">Start Game</button>
+</div>
+
+<script>
+const puzzleEl = document.getElementById('puzzle');
+const movesEl = document.getElementById('moves');
+const timerEl = document.getElementById('timer');
+const bestEl = document.getElementById('best');
+const statusEl = document.getElementById('status');
+const overlay = document.getElementById('overlay');
+
+let N=4, tiles=[], moves=0, seconds=0, timerInt=null, running=false;
+
+function getBestKey(){ return `slide_best_${N}`; }
+function loadBest(){
+  const v=localStorage.getItem(getBestKey());
+  if(v) bestEl.textContent=fmtTime(+v); else bestEl.textContent='–';
+}
+function saveBest(){
+  const k=getBestKey(),prev=localStorage.getItem(k);
+  if(!prev||seconds<+prev){ localStorage.setItem(k,seconds); }
+  loadBest();
+}
+function fmtTime(s){return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` }
+
+function buildTiles(){
+  tiles=[];
+  for(let i=1;i<N*N;i++) tiles.push(i);
+  tiles.push(0);
+}
+
+function isSolvable(){
+  const t=tiles.filter(x=>x!==0);
+  let inv=0;
+  for(let i=0;i<t.length;i++) for(let j=i+1;j<t.length;j++) if(t[i]>t[j]) inv++;
+  if(N%2===1) return inv%2===0;
+  const blankRow=Math.floor(tiles.indexOf(0)/N);
+  return (inv+blankRow)%2===1;
+}
+
+function shuffle(){
+  do{ for(let i=tiles.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[tiles[i],tiles[j]]=[tiles[j],tiles[i]];} }while(!isSolvable()||isSolved());
+  moves=0; seconds=0; movesEl.textContent=0; timerEl.textContent='0:00';
+  clearInterval(timerInt);
+  running=true;
+  timerInt=setInterval(()=>{ seconds++; timerEl.textContent=fmtTime(seconds); },1000);
+  render(); statusEl.textContent='Slide tiles into order!';
+}
+
+function isSolved(){
+  for(let i=0;i<tiles.length-1;i++) if(tiles[i]!==i+1) return false;
+  return tiles[tiles.length-1]===0;
+}
+
+function render(){
+  const size=Math.min(window.innerWidth-32,400);
+  const cell=Math.floor((size-4*(N-1))/N);
+  puzzleEl.style.gridTemplateColumns=`repeat(${N},${cell}px)`;
+  puzzleEl.innerHTML='';
+  tiles.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='tile'+(v===0?' empty':'');
+    d.style.width=cell+'px'; d.style.height=cell+'px';
+    if(v) d.textContent=v;
+    d.addEventListener('click',()=>moveTile(i));
+    puzzleEl.appendChild(d);
+  });
+}
+
+function moveTile(i){
+  if(!running) return;
+  const blank=tiles.indexOf(0);
+  const row=Math.floor(i/N),col=i%N;
+  const br=Math.floor(blank/N),bc=blank%N;
+  if(!((row===br&&Math.abs(col-bc)===1)||(col===bc&&Math.abs(row-br)===1))) return;
+  [tiles[blank],tiles[i]]=[tiles[i],tiles[blank]];
+  moves++; movesEl.textContent=moves;
+  render();
+  if(isSolved()){
+    running=false; clearInterval(timerInt);
+    saveBest();
+    statusEl.textContent=`🎉 Solved in ${moves} moves and ${fmtTime(seconds)}!`;
+  }
+}
+
+// Keyboard support
+const DIRS={ArrowUp:N,ArrowDown:-N,ArrowLeft:1,ArrowRight:-1};
+document.addEventListener('keydown',e=>{
+  if(!DIRS[e.key]) return;
+  e.preventDefault();
+  const blank=tiles.indexOf(0);
+  const target=blank+DIRS[e.key];
+  if(target<0||target>=N*N) return;
+  const br=Math.floor(blank/N),tr=Math.floor(target/N);
+  if(Math.abs(blank-target)===1&&br!==tr) return;
+  moveTile(target);
+});
+
+document.querySelectorAll('.size-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.size-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); N=+b.dataset.n;
+    buildTiles(); loadBest(); render(); running=false; clearInterval(timerInt);
+    statusEl.textContent='Press Shuffle to start!';
+  });
+});
+
+document.getElementById('shuffle-btn').addEventListener('click',()=>{ buildTiles(); shuffle(); });
+document.getElementById('solve-hint-btn').addEventListener('click',()=>{
+  // Highlight movable tiles
+  const blank=tiles.indexOf(0);
+  const br=Math.floor(blank/N),bc=blank%N;
+  puzzleEl.querySelectorAll('.tile').forEach((d,i)=>{
+    const row=Math.floor(i/N),col=i%N;
+    const isAdj=(row===br&&Math.abs(col-bc)===1)||(col===bc&&Math.abs(row-br)===1);
+    d.classList.toggle('highlight',isAdj&&tiles[i]!==0);
+  });
+  setTimeout(()=>puzzleEl.querySelectorAll('.tile').forEach(d=>d.classList.remove('highlight')),800);
+});
+document.getElementById('start-btn').addEventListener('click',()=>{ buildTiles(); loadBest(); shuffle(); overlay.style.display='none'; });
+window.addEventListener('resize',render);
+buildTiles(); loadBest(); render();
+</script>
+</body>
+</html>

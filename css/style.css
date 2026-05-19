@@ -144,6 +144,8 @@ main {
 .game-tag.action    { background: rgba(251,78,46,.12);   color: #fb4e2e; border-color: rgba(251,78,46,.25); }
 .game-tag.classic   { background: rgba(108,99,255,.15);  color: #6c63ff; border-color: rgba(108,99,255,.25); }
 
+.game-tag.sport    { background: rgba(0,200,200,.12);  color: #00c8c8; border-color: rgba(0,200,200,.25); }
+
 /* ===== Footer ===== */
 footer {
   text-align: center;
@@ -169,7 +171,8 @@ footer {
   align-items: center;
   gap: 1rem;
   font-size: .9rem;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  white-space: normal;
 }
 #install-banner button {
   background: var(--accent);
@@ -185,8 +188,15 @@ footer {
 
 /* ===== Responsive ===== */
 @media (max-width: 480px) {
-  .games-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
-  .game-card { padding: 1.2rem 1rem 1rem; }
+  .games-grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+  .game-card { padding: 1.2rem 1rem 1rem; min-height: 44px; }
   .game-icon { font-size: 2.2rem; }
   .game-name { font-size: 1rem; }
+  header p { font-size: .9rem; }
+}
+
+@media (max-width: 360px) {
+  .games-grid { grid-template-columns: repeat(1, 1fr); gap: .6rem; }
+  main { padding: 1.5rem .75rem 3rem; }
+  header p { font-size: .82rem; }
 }
