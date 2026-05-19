@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudoku</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f0f1a;
+    color: #e0e0ff;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  a.back {
+    align-self: flex-start;
+    margin: 12px 20px;
+    color: #6c63ff;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  h1 { color: #6c63ff; letter-spacing: 3px; font-size: 26px; margin-bottom: 8px; text-transform: uppercase; }
+  #top-bar {
+    display: flex; gap: 16px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; justify-content: center;
+  }
+  select, button.action-btn {
+    padding: 6px 14px;
+    background: #1e1e3a;
+    color: #e0e0ff;
+    border: 1px solid #6c63ff44;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  select:hover, button.action-btn:hover { border-color: #6c63ff; }
+  button.action-btn.active { background: #6c63ff; color: #fff; border-color: #6c63ff; }
+  #timer-area { display: flex; gap: 10px; align-items: center; font-size: 14px; color: #aaa; }
+  #timer { color: #fff; font-size: 18px; font-weight: bold; min-width: 60px; }
+  #hints-left { color: #ffd700; font-size: 13px; }
+  #grid-container { margin: 6px 0; }
+  table#sudoku {
+    border-collapse: collapse;
+    border: 3px solid #6c63ff;
+  }
+  td {
+    width: 48px; height: 48px;
+    border: 1px solid #333355;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    transition: background .1s;
+  }
+  /* Box borders */
+  td.box-right { border-right: 3px solid #6c63ff; }
+  td.box-bottom { border-bottom: 3px solid #6c63ff; }
+
+  td.given {
+    color: #e0e0ff;
+    font-size: 22px;
+    font-weight: bold;
+  }
+  td.user {
+    color: #8be6ff;
+    font-size: 22px;
+  }
+  td.selected { background: #2828558c !important; }
+  td.same-num { background: #1e1e4044 !important; }
+  td.conflict { background: #4a1a1a88 !important; color: #ff6b6b !important; }
+  td.hint-cell { color: #ffd700 !important; }
+  td.note-mode .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    width: 100%; height: 100%;
+    padding: 1px;
+  }
+  td .notes-grid span {
+    font-size: 10px;
+    line-height: 1;
+    color: #9090cc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #numpad {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin: 10px 0;
+    width: 300px;
+  }
+  #numpad button {
+    height: 44px;
+    background: #1e1e3a;
+    color: #e0e0ff;
+    border: 1px solid #6c63ff44;
+    border-radius: 6px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  #numpad button:hover { background: #6c63ff; }
+  #numpad button.erase { font-size: 16px; color: #ff6b6b; }
+  #bottom-bar {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 8px 0;
+  }
+  #msg {
+    min-height: 22px; font-size: 14px; color: #2ecc71; margin-bottom: 6px;
+  }
+  #msg.err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>Sudoku</h1>
+
+<div id="top-bar">
+  <select id="diff-sel">
+    <option value="easy">Easy (40 given)</option>
+    <option value="medium" selected>Medium (30 given)</option>
+    <option value="hard">Hard (22 given)</option>
+  </select>
+  <button class="action-btn" id="new-btn" onclick="newGame()">New Game</button>
+  <button class="action-btn" id="note-btn" onclick="toggleNotes()">Notes (N)</button>
+  <div id="timer-area">
+    ⏱ <span id="timer">0:00</span>
+    <button class="action-btn" id="pause-btn" onclick="togglePause()">⏸</button>
+  </div>
+</div>
+
+<div id="bottom-bar">
+  <button class="action-btn" onclick="doHint()">💡 Hint (<span id="hints-left">3</span>)</button>
+  <button class="action-btn" onclick="doUndo()">↩ Undo</button>
+  <button class="action-btn" onclick="doValidate()">✓ Check</button>
+  <button class="action-btn" onclick="doSolve()">🔓 Solve</button>
+</div>
+
+<div id="msg"></div>
+<div id="grid-container"><table id="sudoku"></table></div>
+
+<div id="numpad"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let puzzle = [], solution = [], board = [], notes = [], given = [];
+let selected = null; // [r,c]
+let noteMode = false;
+let hintsLeft = 3;
+let history = []; // [{r,c,oldVal,oldNotes}]
+let elapsed = 0, paused = false, timerInt = null, gameOver = false;
+const DIFF_GIVEN = { easy: 40, medium: 30, hard: 22 };
+
+// ── Generator ─────────────────────────────────────────────────────────────────
+function emptyGrid() { return Array.from({length:9},()=>Array(9).fill(0)); }
+
+function isValid(grid, r, c, num) {
+  for (let i=0;i<9;i++) {
+    if (grid[r][i]===num || grid[i][c]===num) return false;
+  }
+  const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
+  for (let dr=0;dr<3;dr++) for (let dc=0;dc<3;dc++)
+    if (grid[br+dr][bc+dc]===num) return false;
+  return true;
+}
+
+function solveSudoku(grid) {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+    if (grid[r][c]===0) {
+      const nums = shuffle([1,2,3,4,5,6,7,8,9]);
+      for (const n of nums) {
+        if (isValid(grid,r,c,n)) {
+          grid[r][c]=n;
+          if (solveSudoku(grid)) return true;
+          grid[r][c]=0;
+        }
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+function shuffle(arr) {
+  for (let i=arr.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function generatePuzzle(givenCount) {
+  const full = emptyGrid();
+  solveSudoku(full);
+  solution = full.map(r=>[...r]);
+
+  const cells = shuffle([...Array(81).keys()]);
+  const puz = full.map(r=>[...r]);
+  let removed = 0;
+  for (const idx of cells) {
+    if (removed >= 81 - givenCount) break;
+    const r=Math.floor(idx/9), c=idx%9;
+    puz[r][c]=0;
+    removed++;
+  }
+  return puz;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function newGame() {
+  const diff = document.getElementById('diff-sel').value;
+  const gc = DIFF_GIVEN[diff];
+  puzzle = generatePuzzle(gc);
+  board = puzzle.map(r=>[...r]);
+  notes = Array.from({length:9},()=>Array.from({length:9},()=>new Set()));
+  given = puzzle.map(r=>r.map(v=>v!==0));
+  history = [];
+  hintsLeft = 3;
+  selected = null;
+  noteMode = false;
+  gameOver = false;
+  document.getElementById('note-btn').classList.remove('active');
+  document.getElementById('hints-left').textContent = hintsLeft;
+  showMsg('');
+  clearInterval(timerInt);
+  elapsed = 0; paused = false;
+  document.getElementById('pause-btn').textContent = '⏸';
+  timerInt = setInterval(tickTimer, 1000);
+  loadProgress() || renderGrid();
+  saveProgress();
+}
+
+function tickTimer() {
+  if (!paused && !gameOver) { elapsed++; renderTimer(); }
+}
+function renderTimer() {
+  document.getElementById('timer').textContent = `${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}`;
+}
+function togglePause() {
+  paused = !paused;
+  document.getElementById('pause-btn').textContent = paused ? '▶' : '⏸';
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderGrid() {
+  const tbl = document.getElementById('sudoku');
+  tbl.innerHTML = '';
+  for (let r=0;r<9;r++) {
+    const tr = document.createElement('tr');
+    for (let c=0;c<9;c++) {
+      const td = document.createElement('td');
+      // Box borders
+      if ((c+1)%3===0 && c<8) td.classList.add('box-right');
+      if ((r+1)%3===0 && r<8) td.classList.add('box-bottom');
+      td.dataset.r=r; td.dataset.c=c;
+      td.addEventListener('click',()=>selectCell(r,c));
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+  refreshAllCells();
+}
+
+function getCell(r,c) {
+  return document.querySelector(`#sudoku td[data-r="${r}"][data-c="${c}"]`);
+}
+
+function refreshAllCells() {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) refreshCell(r,c);
+  highlightSelection();
+}
+
+function refreshCell(r,c) {
+  const td = getCell(r,c);
+  if (!td) return;
+  td.className = '';
+  // Restore box borders
+  if ((c+1)%3===0 && c<8) td.classList.add('box-right');
+  if ((r+1)%3===0 && r<8) td.classList.add('box-bottom');
+
+  const v = board[r][c];
+  if (v !== 0) {
+    td.innerHTML = v;
+    td.classList.add(given[r][c] ? 'given' : 'user');
+  } else if (notes[r][c].size > 0) {
+    td.classList.add('note-mode');
+    const ng = document.createElement('div');
+    ng.className = 'notes-grid';
+    for (let n=1;n<=9;n++) {
+      const s = document.createElement('span');
+      s.textContent = notes[r][c].has(n) ? n : '';
+      ng.appendChild(s);
+    }
+    td.innerHTML = '';
+    td.appendChild(ng);
+  } else {
+    td.innerHTML = '';
+  }
+}
+
+function highlightSelection() {
+  // Reset backgrounds via class removal
+  document.querySelectorAll('#sudoku td').forEach(td=>{
+    td.classList.remove('selected','same-num','conflict');
+  });
+  if (!selected) return;
+  const [sr,sc] = selected;
+  const sv = board[sr][sc];
+
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+    const td = getCell(r,c);
+    if (!td) continue;
+    const v = board[r][c];
+    const isConflict = v!==0 && !isValid2(r,c,v);
+    if (r===sr && c===sc) {
+      td.classList.add('selected');
+    } else if (isConflict) {
+      td.classList.add('conflict');
+    } else if (sv!==0 && v===sv) {
+      td.classList.add('same-num');
+    }
+  }
+}
+
+function isValid2(r,c,num) {
+  for (let i=0;i<9;i++) {
+    if (i!==c && board[r][i]===num) return false;
+    if (i!==r && board[i][c]===num) return false;
+  }
+  const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
+  for (let dr=0;dr<3;dr++) for (let dc=0;dc<3;dc++) {
+    if (br+dr===r && bc+dc===c) continue;
+    if (board[br+dr][bc+dc]===num) return false;
+  }
+  return true;
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+function selectCell(r,c) {
+  if (paused || gameOver) return;
+  selected = [r,c];
+  highlightSelection();
+}
+
+function inputNum(num) {
+  if (!selected || gameOver) return;
+  const [r,c] = selected;
+  if (given[r][c]) return;
+
+  if (noteMode) {
+    history.push({r,c,type:'note',oldNotes:new Set(notes[r][c])});
+    if (notes[r][c].has(num)) notes[r][c].delete(num);
+    else notes[r][c].add(num);
+    refreshCell(r,c);
+    return;
+  }
+
+  history.push({r,c,type:'val',oldVal:board[r][c],oldNotes:new Set(notes[r][c])});
+  board[r][c] = num;
+  notes[r][c].clear();
+  showMsg('');
+  refreshCell(r,c);
+  highlightSelection();
+  saveProgress();
+  checkWin();
+}
+
+function eraseCell() {
+  if (!selected || gameOver) return;
+  const [r,c]=selected;
+  if (given[r][c]) return;
+  history.push({r,c,type:'val',oldVal:board[r][c],oldNotes:new Set(notes[r][c])});
+  board[r][c]=0;
+  notes[r][c].clear();
+  refreshCell(r,c);
+  highlightSelection();
+  saveProgress();
+}
+
+function doUndo() {
+  if (!history.length) return;
+  const h = history.pop();
+  if (h.type==='val') {
+    board[h.r][h.c]=h.oldVal;
+    notes[h.r][h.c]=h.oldNotes;
+  } else {
+    notes[h.r][h.c]=h.oldNotes;
+  }
+  refreshCell(h.r,h.c);
+  highlightSelection();
+}
+
+function toggleNotes() {
+  noteMode = !noteMode;
+  document.getElementById('note-btn').classList.toggle('active', noteMode);
+}
+
+function doHint() {
+  if (hintsLeft<=0) { showMsg('No hints left!',true); return; }
+  // Find an empty or wrong cell
+  const empties=[];
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++)
+    if (!given[r][c] && board[r][c]!==solution[r][c]) empties.push([r,c]);
+  if (!empties.length) { showMsg('Board is correct!'); return; }
+  const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+  history.push({r,c,type:'val',oldVal:board[r][c],oldNotes:new Set(notes[r][c])});
+  board[r][c]=solution[r][c];
+  notes[r][c].clear();
+  hintsLeft--;
+  document.getElementById('hints-left').textContent=hintsLeft;
+  const td=getCell(r,c);
+  refreshCell(r,c);
+  td.classList.add('hint-cell');
+  showMsg('Hint applied!');
+  saveProgress();
+  checkWin();
+}
+
+function doValidate() {
+  let errors=0;
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+    if (board[r][c]!==0 && board[r][c]!==solution[r][c]) errors++;
+  }
+  if (errors===0) showMsg('✓ All filled cells are correct!');
+  else showMsg(`${errors} error(s) found`,true);
+}
+
+function doSolve() {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++) {
+    board[r][c]=solution[r][c];
+    notes[r][c].clear();
+  }
+  gameOver=true;
+  clearInterval(timerInt);
+  refreshAllCells();
+  showMsg('Puzzle solved!');
+}
+
+function checkWin() {
+  for (let r=0;r<9;r++) for (let c=0;c<9;c++)
+    if (board[r][c]!==solution[r][c]) return;
+  gameOver=true;
+  clearInterval(timerInt);
+  const t=elapsed;
+  showMsg(`🎉 Solved in ${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}!`);
+  localStorage.removeItem('sdk_save');
+}
+
+function showMsg(txt,isErr=false) {
+  const el=document.getElementById('msg');
+  el.textContent=txt;
+  el.className=isErr?'err':'';
+}
+
+// ── Number pad ────────────────────────────────────────────────────────────────
+function buildNumpad() {
+  const np=document.getElementById('numpad');
+  np.innerHTML='';
+  for (let n=1;n<=9;n++) {
+    const b=document.createElement('button');
+    b.textContent=n;
+    b.addEventListener('click',()=>inputNum(n));
+    np.appendChild(b);
+  }
+  const er=document.createElement('button');
+  er.className='erase'; er.textContent='⌫';
+  er.addEventListener('click',eraseCell);
+  np.appendChild(er);
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key==='n'||e.key==='N') { toggleNotes(); return; }
+  if (e.ctrlKey && e.key==='z') { doUndo(); return; }
+  if (!selected) return;
+  const [r,c]=selected;
+  if (e.key>='1'&&e.key<='9') { inputNum(+e.key); return; }
+  if (e.key==='Backspace'||e.key==='Delete'||e.key==='0') { eraseCell(); return; }
+  const moves={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
+  if (moves[e.key]) {
+    e.preventDefault();
+    const [dr,dc]=moves[e.key];
+    const nr=Math.max(0,Math.min(8,r+dr));
+    const nc=Math.max(0,Math.min(8,c+dc));
+    selectCell(nr,nc);
+  }
+});
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+function saveProgress() {
+  const save={board,notes:notes.map(r=>r.map(s=>[...s])),given,puzzle,solution,elapsed,hintsLeft};
+  localStorage.setItem('sdk_save',JSON.stringify(save));
+}
+
+function loadProgress() {
+  try {
+    const s=JSON.parse(localStorage.getItem('sdk_save'));
+    if (!s) return false;
+    board=s.board; given=s.given; puzzle=s.puzzle; solution=s.solution;
+    elapsed=s.elapsed||0; hintsLeft=s.hintsLeft??3;
+    notes=s.notes.map(r=>r.map(a=>new Set(a)));
+    document.getElementById('hints-left').textContent=hintsLeft;
+    renderGrid();
+    renderTimer();
+    return true;
+  } catch(e) { return false; }
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+buildNumpad();
+if (!loadProgress()) newGame();
+else { timerInt=setInterval(tickTimer,1000); }
+</script>
+</body>
+</html>

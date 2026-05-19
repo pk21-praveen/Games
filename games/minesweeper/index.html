@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minesweeper</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f0f1a;color:#e0e0e0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;user-select:none}
+a.back{align-self:flex-start;color:#6c63ff;text-decoration:none;font-size:15px;margin-bottom:16px;transition:opacity .2s}
+a.back:hover{opacity:.75}
+h1{color:#6c63ff;font-size:2em;margin-bottom:16px;text-shadow:0 0 24px rgba(108,99,255,.5)}
+.diff-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;justify-content:center}
+.diff-btn{padding:7px 20px;background:#1a1a2e;border:2px solid #6c63ff;color:#e0e0e0;border-radius:6px;cursor:pointer;font-size:14px;transition:all .2s}
+.diff-btn:hover,.diff-btn.active{background:#6c63ff;color:#fff}
+.panel{background:#1a1a2e;border:2px solid #6c63ff;border-radius:12px;padding:16px;display:flex;flex-direction:column;align-items:center;box-shadow:0 0 40px rgba(108,99,255,.25)}
+.hud{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:14px;padding:8px 12px;background:#0f0f1a;border-radius:6px;gap:16px}
+.seg{background:#000;color:#f33;font-family:'Courier New',monospace;font-size:26px;font-weight:bold;padding:4px 10px;border-radius:4px;min-width:66px;text-align:center;letter-spacing:2px;border:2px inset #333}
+.face-btn{font-size:26px;cursor:pointer;background:linear-gradient(135deg,#ddd,#aaa);border:3px outset #ccc;border-radius:6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;transition:transform .1s;flex-shrink:0}
+.face-btn:hover{transform:scale(1.1)}
+.face-btn:active{border-style:inset;transform:scale(.95)}
+#board{display:grid;gap:2px}
+.cell{width:28px;height:28px;background:#c0c0c0;border:2px outset #e0e0e0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;cursor:pointer;transition:background .08s;position:relative}
+.cell:hover:not(.open):not(.boom):not(.dead){background:#d8d8d8}
+.cell.open{background:#bdbdbd;border:1px solid #999;cursor:default}
+.cell.flagged{background:#c0c0c0}
+.cell.wrong{background:#c0c0c0}
+.cell.boom{background:#ff3333;animation:pop .4s ease-out}
+.cell.mine-show{background:#c0c0c0;border:1px solid #999}
+.cell.mine-wrong{background:#ff9999;border:1px solid #999}
+@keyframes pop{0%{transform:scale(1);background:#ffff00}40%{transform:scale(1.35);background:#ff8800}100%{transform:scale(1);background:#ff3333}}
+.c1{color:#0000ee}.c2{color:#007b00}.c3{color:#cc0000}.c4{color:#00008b}.c5{color:#8b0000}.c6{color:#008b8b}.c7{color:#111}.c8{color:#808080}
+.msg{margin-top:14px;font-size:17px;font-weight:bold;min-height:24px;text-align:center}
+.msg.win{color:#4caf50}.msg.lose{color:#f44336}
+.bests{margin-top:12px;font-size:13px;color:#777;text-align:center}
+.bests b{color:#6c63ff}
+</style>
+</head>
+<body>
+<a href="../../index.html" class="back">← Back</a>
+<h1>💣 Minesweeper</h1>
+<div class="diff-row">
+  <button class="diff-btn active" onclick="setDiff('easy')">Easy 9×9</button>
+  <button class="diff-btn" onclick="setDiff('medium')">Medium 16×16</button>
+  <button class="diff-btn" onclick="setDiff('hard')">Hard 16×30</button>
+</div>
+<div class="panel">
+  <div class="hud">
+    <div class="seg" id="mine-ctr">010</div>
+    <div class="face-btn" id="face" onclick="newGame()">🙂</div>
+    <div class="seg" id="timer">000</div>
+  </div>
+  <div id="board"></div>
+  <div class="msg" id="msg"></div>
+</div>
+<div class="bests" id="bests"></div>
+
+<script>
+const CFGS={easy:{r:9,c:9,m:10},medium:{r:16,c:16,m:40},hard:{r:16,c:30,m:99}};
+const NUMCLS=['','c1','c2','c3','c4','c5','c6','c7','c8'];
+let diff='easy',board=[],state='idle',secs=0,remaining=0,timerID=null,rows=0,cols=0,mines=0;
+
+function setDiff(d){
+  diff=d;
+  document.querySelectorAll('.diff-btn').forEach((b,i)=>b.classList.toggle('active',['easy','medium','hard'][i]===d));
+  newGame();
+}
+
+function newGame(){
+  const cfg=CFGS[diff];rows=cfg.r;cols=cfg.c;mines=cfg.m;
+  remaining=mines;state='idle';secs=0;
+  clearInterval(timerID);timerID=null;
+  setSeg('mine-ctr',remaining);setSeg('timer',0);
+  setFace('🙂');setMsg('','');
+  board=Array.from({length:rows},()=>Array.from({length:cols},()=>({mine:false,open:false,flag:false,q:false,n:0})));
+  render();updateBests();
+}
+
+function placeMines(sr,sc){
+  const safe=new Set();
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=sr+dr,nc=sc+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols)safe.add(nr*cols+nc);}
+  let placed=0;
+  while(placed<mines){const pos=Math.floor(Math.random()*rows*cols);if(!board[Math.floor(pos/cols)][pos%cols].mine&&!safe.has(pos)){board[Math.floor(pos/cols)][pos%cols].mine=true;placed++;}}
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(!board[r][c].mine)board[r][c].n=neighbors(r,c).filter(([nr,nc])=>board[nr][nc].mine).length;
+}
+
+function neighbors(r,c){
+  const out=[];
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(dr===0&&dc===0)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols)out.push([nr,nc]);}
+  return out;
+}
+
+function render(){
+  const el=document.getElementById('board');
+  el.style.gridTemplateColumns=`repeat(${cols},28px)`;
+  el.innerHTML='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const d=document.createElement('div');
+    d.className='cell';d.dataset.r=r;d.dataset.c=c;
+    styleCell(d,board[r][c]);
+    d.addEventListener('click',()=>onLeft(r,c));
+    d.addEventListener('contextmenu',e=>{e.preventDefault();onRight(r,c);});
+    d.addEventListener('mousedown',e=>{if(e.button===1){e.preventDefault();onChord(r,c);}});
+    d.addEventListener('dblclick',()=>onChord(r,c));
+    el.appendChild(d);
+  }
+}
+
+function styleCell(el,cell){
+  el.className='cell';el.textContent='';
+  if(cell.open){
+    el.classList.add('open');
+    if(cell.mine){el.textContent='💣';el.classList.add('mine-show');}
+    else if(cell.n>0){el.textContent=cell.n;el.classList.add(NUMCLS[cell.n]);}
+  } else if(cell.flag){el.classList.add('flagged');el.textContent='🚩';}
+  else if(cell.q){el.textContent='?';el.style.color='#ffcc00';}
+}
+
+function getEl(r,c){return document.querySelector(`[data-r="${r}"][data-c="${c}"]`);}
+function setSeg(id,v){document.getElementById(id).textContent=String(Math.min(999,Math.max(-99,v))).padStart(3,'0');}
+function setFace(f){document.getElementById('face').textContent=f;}
+function setMsg(t,cls){const el=document.getElementById('msg');el.textContent=t;el.className='msg'+( cls?' '+cls:'');}
+
+function startTimer(){
+  if(timerID)return;
+  timerID=setInterval(()=>{secs=Math.min(999,secs+1);setSeg('timer',secs);},1000);
+}
+
+function onLeft(r,c){
+  if(state==='won'||state==='lost')return;
+  const cell=board[r][c];
+  if(cell.open||cell.flag)return;
+  if(state==='idle'){
+    placeMines(r,c);state='playing';startTimer();
+    // re-render numbers then reveal
+    render();revealCell(r,c);checkWin();return;
+  }
+  if(cell.mine){explode(r,c);return;}
+  revealCell(r,c);checkWin();
+}
+
+function revealCell(r,c){
+  const cell=board[r][c];
+  if(cell.open||cell.flag||cell.mine)return;
+  cell.open=true;
+  const el=getEl(r,c);if(el)styleCell(el,cell);
+  if(cell.n===0)neighbors(r,c).forEach(([nr,nc])=>revealCell(nr,nc));
+}
+
+function onRight(r,c){
+  if(state!=='playing'&&state!=='idle')return;
+  const cell=board[r][c];
+  if(cell.open)return;
+  if(!cell.flag&&!cell.q){cell.flag=true;remaining--;}
+  else if(cell.flag){cell.flag=false;cell.q=true;remaining++;}
+  else{cell.q=false;}
+  setSeg('mine-ctr',remaining);
+  const el=getEl(r,c);if(el)styleCell(el,cell);
+}
+
+function onChord(r,c){
+  if(state!=='playing')return;
+  const cell=board[r][c];
+  if(!cell.open||cell.n===0)return;
+  const nb=neighbors(r,c);
+  const flagged=nb.filter(([nr,nc])=>board[nr][nc].flag).length;
+  if(flagged!==cell.n)return;
+  let hitMine=false;
+  nb.forEach(([nr,nc])=>{
+    const neighborCell=board[nr][nc];
+    if(!neighborCell.flag&&!neighborCell.open){
+      if(neighborCell.mine){hitMine=true;neighborCell.open=true;getEl(nr,nc).classList.add('boom');getEl(nr,nc).textContent='💣';}
+      else revealCell(nr,nc);
+    }
+  });
+  if(hitMine)setTimeout(()=>loseGame(-1,-1),350);
+  else checkWin();
+}
+
+function explode(r,c){
+  state='lost';
+  const el=getEl(r,c);
+  board[r][c].open=true;
+  el.classList.add('boom');el.textContent='💣';
+  clearInterval(timerID);
+  setTimeout(()=>{
+    setFace('😵');setMsg('💥 BOOM! Game Over!','lose');
+    for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+      const cell=board[row][col];
+      if(row===r&&col===c)continue;
+      if(cell.mine&&!cell.flag){cell.open=true;const e=getEl(row,col);if(e)styleCell(e,cell);}
+      if(cell.flag&&!cell.mine){const e=getEl(row,col);if(e){e.textContent='❌';e.classList.add('mine-wrong');}}
+    }
+  },350);
+}
+
+function loseGame(){
+  state='lost';
+  clearInterval(timerID);
+  setFace('😵');setMsg('💥 BOOM! Game Over!','lose');
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const cell=board[r][c];
+    if(cell.mine&&!cell.flag){cell.open=true;const e=getEl(r,c);if(e)styleCell(e,cell);}
+    if(cell.flag&&!cell.mine){const e=getEl(r,c);if(e){e.textContent='❌';e.classList.add('mine-wrong');}}
+  }
+}
+
+function checkWin(){
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(!board[r][c].mine&&!board[r][c].open)return;
+  state='won';clearInterval(timerID);
+  setFace('😎');setMsg('🎉 You Win!','win');
+  const key=`ms_best_${diff}`;const best=parseInt(localStorage.getItem(key))||Infinity;
+  if(secs<best)localStorage.setItem(key,secs);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(board[r][c].mine&&!board[r][c].flag){board[r][c].flag=true;const e=getEl(r,c);if(e)styleCell(e,board[r][c]);}
+  remaining=0;setSeg('mine-ctr',0);updateBests();
+}
+
+function updateBests(){
+  const e=localStorage.getItem(`ms_best_easy`),m=localStorage.getItem(`ms_best_medium`),h=localStorage.getItem(`ms_best_hard`);
+  document.getElementById('bests').innerHTML=`Best Times — Easy: <b>${e?e+'s':'--'}</b> | Medium: <b>${m?m+'s':'--'}</b> | Hard: <b>${h?h+'s':'--'}</b>`;
+}
+
+newGame();
+</script>
+</body>
+</html>
