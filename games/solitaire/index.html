@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Solitaire – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
+.back{position:fixed;top:.6rem;left:.6rem;color:#6c63ff;text-decoration:none;font-size:.85rem;z-index:100;background:rgba(15,15,26,.9);padding:.3rem .6rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+h1{text-align:center;padding:2.8rem .5rem .5rem;font-size:1.5rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#hud{display:flex;gap:1.5rem;justify-content:center;align-items:center;flex-wrap:wrap;padding:.3rem .5rem .6rem;font-size:.85rem;color:#8888aa}
+#hud strong{color:#e0e0ff}
+.btn-sm{background:rgba(108,99,255,.2);border:1px solid rgba(108,99,255,.3);color:#6c63ff;padding:.3rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
+.btn-sm:hover{background:rgba(108,99,255,.35)}
+#game{padding:.4rem .5rem 1rem;user-select:none;-webkit-user-select:none}
+/* Top row */
+#top-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.pile-slot{width:var(--cw,60px);height:var(--ch,84px);border:2px dashed rgba(108,99,255,.25);border-radius:6px;position:relative;flex-shrink:0}
+.pile-slot.foundation{border-color:rgba(72,199,142,.25)}
+/* Card */
+.card{position:absolute;width:var(--cw,60px);height:var(--ch,84px);background:#16213e;border:1px solid rgba(108,99,255,.35);border-radius:6px;display:flex;flex-direction:column;padding:3px 4px;font-size:clamp(.65rem,.8vw+.4rem,1rem);font-weight:700;cursor:pointer;transition:box-shadow .12s,filter .12s;box-shadow:1px 1px 3px rgba(0,0,0,.5)}
+.card.red{color:#ff6584}
+.card.black{color:#aaddff}
+.card.face-down{background:linear-gradient(135deg,#1a1a3a,#16213e);cursor:pointer}
+.card.face-down::after{content:'🂠';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw,60px)*0.6);opacity:.3}
+.card.selected{box-shadow:0 0 0 2px #6c63ff,0 4px 12px rgba(108,99,255,.5);filter:brightness(1.15)}
+.card .rank{line-height:1}
+.card .suit{font-size:.9em}
+.card .br{position:absolute;bottom:3px;right:4px;transform:rotate(180deg);line-height:1}
+#tableau{display:flex;gap:6px;position:relative}
+.col-pile{position:relative;flex:1;min-height:200px}
+.empty-col{width:100%;height:var(--ch,84px);border:2px dashed rgba(108,99,255,.2);border-radius:6px}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:200}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:320px;line-height:1.6;font-size:.95rem}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.7rem 2rem;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer}
+.btn:hover{opacity:.85}
+#win-msg{color:#48c78e;font-weight:700;font-size:1.1rem}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🂡 Solitaire</h1>
+<div id="hud">
+  <div>Moves: <strong id="moves">0</strong></div>
+  <div>Score: <strong id="score">0</strong></div>
+  <button class="btn-sm" id="new-btn">New Game</button>
+  <button class="btn-sm" id="undo-btn">Undo</button>
+</div>
+<div id="game">
+  <div id="top-row"></div>
+  <div id="tableau"></div>
+</div>
+
+<div id="overlay">
+  <h2>🂡 Solitaire</h2>
+  <p><strong>Klondike Solitaire</strong><br><br>
+  • Click <strong>Stock</strong> to flip a card to Waste<br>
+  • Click a card to <strong>select</strong> it (yellow glow), then click a valid destination<br>
+  • Build tableau in <strong>alternating color</strong>, descending order<br>
+  • Move <strong>Aces to Foundations</strong> first; build up by suit to King<br>
+  • Win when all 52 cards reach the 4 foundations!</p>
+  <button class="btn" id="start-btn">Deal Cards</button>
+</div>
+
+<script>
+const SUITS=['♠','♥','♦','♣'];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RED=new Set(['♥','♦']);
+
+function cardVal(rank){return RANKS.indexOf(rank)+1;}
+function isRed(suit){return RED.has(suit);}
+function isBlack(suit){return !RED.has(suit);}
+
+// State
+let stock=[], waste=[], foundations=[[],[],[],[]], tableau=[[],[],[],[],[],[],[]];
+let selected=null; // {from, fromIdx, cards}
+let moves=0, score=0;
+let history=[];
+
+function calcSize(){
+  const W=Math.min(window.innerWidth,600);
+  const cw=Math.floor((W-24-6*6)/7);
+  const ch=Math.floor(cw*1.4);
+  document.documentElement.style.setProperty('--cw',cw+'px');
+  document.documentElement.style.setProperty('--ch',ch+'px');
+  return {cw,ch};
+}
+
+function buildDeck(){
+  const d=[];
+  for(const s of SUITS) for(const r of RANKS) d.push({s,r,faceUp:false});
+  for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+
+function deal(){
+  const deck=buildDeck();
+  tableau=[[],[],[],[],[],[],[]];
+  foundations=[[],[],[],[]];
+  waste=[]; history=[]; moves=0; score=0;
+  document.getElementById('moves').textContent=0;
+  document.getElementById('score').textContent=0;
+  let di=0;
+  for(let c=0;c<7;c++){
+    for(let r=0;r<=c;r++){
+      tableau[c].push({...deck[di++], faceUp:r===c});
+    }
+  }
+  stock=deck.slice(di).map(c=>({...c,faceUp:false}));
+  selected=null;
+  render();
+}
+
+function saveHistory(){
+  history.push({
+    stock:JSON.parse(JSON.stringify(stock)),
+    waste:JSON.parse(JSON.stringify(waste)),
+    foundations:JSON.parse(JSON.stringify(foundations)),
+    tableau:JSON.parse(JSON.stringify(tableau)),
+    moves,score
+  });
+  if(history.length>50) history.shift();
+}
+
+function undo(){
+  if(!history.length) return;
+  const s=history.pop();
+  stock=s.stock; waste=s.waste; foundations=s.foundations; tableau=s.tableau;
+  moves=s.moves; score=s.score;
+  document.getElementById('moves').textContent=moves;
+  document.getElementById('score').textContent=score;
+  selected=null; render();
+}
+
+function canPlaceOnTableau(card, target){
+  if(!target.length) return card.r==='K';
+  const top=target[target.length-1];
+  if(!top.faceUp) return false;
+  return isRed(card.s)!==isRed(top.s) && cardVal(card.r)===cardVal(top.r)-1;
+}
+function canPlaceOnFoundation(card, pile){
+  if(!pile.length) return card.r==='A';
+  const top=pile[pile.length-1];
+  return card.s===top.s && cardVal(card.r)===cardVal(top.r)+1;
+}
+
+function tryAutoFoundation(card,from,fromIdx){
+  for(let fi=0;fi<4;fi++){
+    if(canPlaceOnFoundation(card,foundations[fi])){
+      saveHistory();
+      foundations[fi].push(card);
+      removeFromSource(from,fromIdx,1);
+      moves++; score+=10;
+      document.getElementById('moves').textContent=moves;
+      document.getElementById('score').textContent=score;
+      checkWin(); render(); return true;
+    }
+  }
+  return false;
+}
+
+function removeFromSource(from,fromIdx,count){
+  if(from==='waste') waste.pop();
+  else if(from==='tableau') { tableau[fromIdx].splice(tableau[fromIdx].length-count); flipTop(fromIdx); }
+}
+
+function flipTop(ci){
+  const col=tableau[ci];
+  if(col.length>0&&!col[col.length-1].faceUp){ col[col.length-1].faceUp=true; score+=5; }
+}
+
+function checkWin(){
+  if(foundations.every(f=>f.length===13)){
+    document.getElementById('overlay').style.display='flex';
+    document.getElementById('overlay').querySelector('h2').textContent='🎉 You Win!';
+    document.getElementById('overlay').querySelector('p').textContent=`Congratulations! Solved in ${moves} moves with score ${score}.`;
+    document.getElementById('start-btn').textContent='Play Again';
+  }
+}
+
+// Render
+function render(){
+  const {cw,ch}=calcSize();
+  const topRow=document.getElementById('top-row');
+  const tab=document.getElementById('tableau');
+  topRow.innerHTML=''; tab.innerHTML='';
+
+  // Stock
+  const stockSlot=makeSlot();
+  if(stock.length){
+    const c=makeCardEl({s:'',r:'',faceUp:false});
+    c.style.cursor='pointer';
+    c.addEventListener('click',()=>clickStock());
+    stockSlot.appendChild(c);
+  } else {
+    const empty=document.createElement('div');
+    empty.textContent='↺'; empty.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.8rem;color:rgba(108,99,255,.4);cursor:pointer;';
+    empty.addEventListener('click',()=>clickStock());
+    stockSlot.appendChild(empty);
+  }
+  topRow.appendChild(stockSlot);
+
+  // Waste
+  const wasteSlot=makeSlot();
+  if(waste.length){
+    const top=waste[waste.length-1];
+    const c=makeCardEl(top);
+    c.addEventListener('click',()=>clickCard('waste',-1,waste.length-1));
+    if(selected&&selected.from==='waste') c.classList.add('selected');
+    wasteSlot.appendChild(c);
+  }
+  topRow.appendChild(wasteSlot);
+
+  // Spacer
+  const sp=document.createElement('div'); sp.style.flex='1';
+  topRow.appendChild(sp);
+
+  // Foundations
+  for(let fi=0;fi<4;fi++){
+    const slot=makeSlot(); slot.classList.add('foundation');
+    slot.addEventListener('click',()=>clickFoundation(fi));
+    if(foundations[fi].length){
+      const top=foundations[fi][foundations[fi].length-1];
+      const c=makeCardEl(top);
+      slot.appendChild(c);
+    } else {
+      const lbl=document.createElement('div');
+      lbl.textContent=SUITS[fi]; lbl.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;opacity:.25;pointer-events:none;';
+      slot.appendChild(lbl);
+    }
+    topRow.appendChild(slot);
+  }
+
+  // Tableau
+  for(let ci=0;ci<7;ci++){
+    const colDiv=document.createElement('div');
+    colDiv.className='col-pile';
+    const emptySlot=document.createElement('div');
+    emptySlot.className='empty-col';
+    emptySlot.addEventListener('click',()=>clickTableauCol(ci));
+    colDiv.appendChild(emptySlot);
+    const col=tableau[ci];
+    const offset=Math.floor(ch*0.28);
+    col.forEach((card,ri)=>{
+      const c=makeCardEl(card);
+      c.style.top=(ri*offset)+'px';
+      c.style.zIndex=ri+1;
+      const isSelGroup=selected&&selected.from==='tableau'&&selected.fromIdx===ci&&ri>=tableau[ci].length-selected.cards.length;
+      if(isSelGroup) c.classList.add('selected');
+      c.addEventListener('click',(e)=>{ e.stopPropagation(); clickCard('tableau',ci,ri); });
+      colDiv.appendChild(c);
+    });
+    colDiv.style.minHeight=(col.length*offset+ch+8)+'px';
+    tab.appendChild(colDiv);
+  }
+}
+
+function makeSlot(){
+  const d=document.createElement('div');
+  d.className='pile-slot'; return d;
+}
+
+function makeCardEl(card){
+  const d=document.createElement('div');
+  d.className='card'+(card.faceUp?(isRed(card.s)?' red':' black'):'  face-down');
+  if(card.faceUp){
+    d.innerHTML=`<span class="rank">${card.r}</span><span class="suit">${card.s}</span><span class="br">${card.r}</span>`;
+  }
+  return d;
+}
+
+function clickStock(){
+  saveHistory();
+  if(stock.length){ const c=stock.pop(); c.faceUp=true; waste.push(c); }
+  else { stock=waste.reverse().map(c=>({...c,faceUp:false})); waste=[]; }
+  selected=null; render();
+}
+
+function clickCard(from,fromIdx,cardIdx){
+  const source=from==='waste'?waste:tableau[fromIdx];
+  const card=source[cardIdx];
+  if(!card.faceUp){
+    if(from==='tableau'&&cardIdx===source.length-1){ saveHistory(); source[cardIdx].faceUp=true; score+=5; render(); } return;
+  }
+  if(selected){
+    // Try to move selected onto this
+    const selCards=selected.cards;
+    if(from==='tableau'){
+      if(canPlaceOnTableau(selCards[0],tableau[fromIdx])){
+        saveHistory();
+        tableau[fromIdx].push(...selCards);
+        removeFromSource(selected.from,selected.fromIdx,selCards.length);
+        moves++; document.getElementById('moves').textContent=moves;
+        selected=null; render(); return;
+      }
+    }
+    if(from==='waste'&&selected.from==='waste'){ selected=null; render(); return; }
+    selected=null;
+  }
+  // Select
+  const cards=from==='tableau'?tableau[fromIdx].slice(cardIdx):[card];
+  if(!cards[0].faceUp){ selected=null; render(); return; }
+  selected={from,fromIdx,cards};
+  render();
+  // Double-click shortcut: try foundation
+  if(cards.length===1){
+    for(let fi=0;fi<4;fi++){
+      if(canPlaceOnFoundation(card,foundations[fi])){
+        // auto move handled by explicit foundation click
+      }
+    }
+  }
+}
+
+function clickFoundation(fi){
+  if(!selected) return;
+  const cards=selected.cards;
+  if(cards.length!==1) { selected=null; render(); return; }
+  if(canPlaceOnFoundation(cards[0],foundations[fi])){
+    saveHistory();
+    foundations[fi].push(cards[0]);
+    removeFromSource(selected.from,selected.fromIdx,1);
+    moves++; score+=10;
+    document.getElementById('moves').textContent=moves;
+    document.getElementById('score').textContent=score;
+    selected=null; checkWin(); render();
+  } else { selected=null; render(); }
+}
+
+function clickTableauCol(ci){
+  if(!selected) return;
+  const cards=selected.cards;
+  if(canPlaceOnTableau(cards[0],tableau[ci])){
+    saveHistory();
+    tableau[ci].push(...cards);
+    removeFromSource(selected.from,selected.fromIdx,cards.length);
+    moves++; document.getElementById('moves').textContent=moves;
+    selected=null; render();
+  } else { selected=null; render(); }
+}
+
+document.getElementById('new-btn').addEventListener('click',deal);
+document.getElementById('undo-btn').addEventListener('click',undo);
+document.getElementById('start-btn').addEventListener('click',()=>{ deal(); document.getElementById('overlay').style.display='none'; });
+window.addEventListener('resize',render);
+calcSize();
+</script>
+</body>
+</html>

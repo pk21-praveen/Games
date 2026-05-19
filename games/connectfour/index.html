@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Connect Four – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:2rem}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#status{margin:.5rem 0 .8rem;font-size:1rem;color:#8888aa;min-height:1.4em}
+#board-wrap{background:#16213e;border:2px solid rgba(108,99,255,.3);border-radius:12px;padding:10px;display:inline-block}
+#board{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.col-btn{background:transparent;border:none;cursor:pointer;padding:4px 0 0;display:flex;justify-content:center}
+.col-btn:hover .drop-arrow{color:#6c63ff}
+.drop-arrow{color:#8888aa;font-size:1.1rem;transition:color .15s}
+.cell{width:clamp(36px,10vw,52px);height:clamp(36px,10vw,52px);border-radius:50%;background:#0f0f1a;border:2px solid rgba(108,99,255,.15);transition:background .2s}
+.cell.p1{background:#fb4e2e;border-color:#fb4e2e;box-shadow:0 0 8px rgba(251,78,46,.5)}
+.cell.p2{background:#ffbd2e;border-color:#ffbd2e;box-shadow:0 0 8px rgba(255,189,46,.5)}
+.cell.win{box-shadow:0 0 16px 4px #fff;border-color:#fff}
+#scores{display:flex;gap:2rem;margin:.3rem 0 .8rem;font-size:.9rem}
+.sc{text-align:center}
+.sc strong{display:block;font-size:1.3rem;font-weight:700}
+.sc.p1 strong{color:#fb4e2e}
+.sc.p2 strong{color:#ffbd2e}
+.sc label{font-size:.72rem;color:#8888aa;text-transform:uppercase;letter-spacing:.4px}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.6rem 1.6rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;margin-top:.5rem;transition:opacity .2s}
+.btn:hover{opacity:.85}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:300px;line-height:1.5}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🔴 Connect Four</h1>
+<div id="scores">
+  <div class="sc p1"><strong id="p1-w">0</strong><label>🔴 You</label></div>
+  <div class="sc p2"><strong id="p2-w">0</strong><label>🟡 AI</label></div>
+</div>
+<div id="status">Your turn (🔴)</div>
+<div id="board-wrap"><div id="board"></div></div>
+<button class="btn" id="new-btn">New Game</button>
+
+<div id="overlay">
+  <h2>🔴 Connect Four</h2>
+  <p>You are <strong style="color:#fb4e2e">🔴 Red</strong>.<br>Drop discs by clicking a column.<br>First to connect <strong>4 in a row</strong> wins!</p>
+  <button class="btn" id="start-btn">Start Game</button>
+</div>
+
+<script>
+const ROWS=6, COLS=7;
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const overlay = document.getElementById('overlay');
+const p1WEl = document.getElementById('p1-w');
+const p2WEl = document.getElementById('p2-w');
+
+let grid, turn, gameOver, p1Wins=0, p2Wins=0;
+let cells = [];
+
+function buildBoard() {
+  boardEl.innerHTML = '';
+  cells = [];
+  // Arrow buttons row
+  for (let c=0;c<COLS;c++) {
+    const btn = document.createElement('button');
+    btn.className='col-btn'; btn.innerHTML='<span class="drop-arrow">▼</span>';
+    btn.dataset.col=c;
+    btn.addEventListener('click', ()=>{ if(turn===1&&!gameOver) drop(c); });
+    boardEl.appendChild(btn);
+  }
+  for (let r=0;r<ROWS;r++) {
+    for (let c=0;c<COLS;c++) {
+      const d = document.createElement('div');
+      d.className='cell'; d.dataset.r=r; d.dataset.c=c;
+      boardEl.appendChild(d);
+      cells.push(d);
+    }
+  }
+}
+
+function getCell(r,c){ return cells[r*COLS+c]; }
+
+function init() {
+  grid = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  turn=1; gameOver=false;
+  cells.forEach(c=>{c.className='cell';});
+  statusEl.textContent='Your turn (🔴)';
+  overlay.style.display='none';
+}
+
+function drop(col) {
+  if (gameOver) return;
+  let row=-1;
+  for (let r=ROWS-1;r>=0;r--) { if(!grid[r][col]){row=r;break;} }
+  if (row===-1) return;
+  grid[row][col]=turn;
+  getCell(row,col).classList.add(turn===1?'p1':'p2');
+  const winCells = checkWin(row,col,turn);
+  if (winCells) { endGame(winCells, turn); return; }
+  if (grid[0].every(v=>v)) { endDraw(); return; }
+  turn = turn===1?2:1;
+  if (turn===2) { statusEl.textContent='AI thinking…'; setTimeout(aiMove,400); }
+  else statusEl.textContent='Your turn (🔴)';
+}
+
+function checkWin(r,c,p) {
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for (const [dr,dc] of dirs) {
+    let line=[{r,c}];
+    for (let s of [-1,1]) {
+      let nr=r+dr*s,nc=c+dc*s;
+      while(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&grid[nr][nc]===p){line.push({r:nr,c:nc});nr+=dr*s;nc+=dc*s;}
+    }
+    if (line.length>=4) return line;
+  }
+  return null;
+}
+
+function endGame(winCells, p) {
+  gameOver=true;
+  winCells.forEach(({r,c})=>getCell(r,c).classList.add('win'));
+  if (p===1){p1Wins++;p1WEl.textContent=p1Wins;statusEl.textContent='You win! 🎉';}
+  else{p2Wins++;p2WEl.textContent=p2Wins;statusEl.textContent='AI wins! 🤖';}
+}
+function endDraw(){gameOver=true;statusEl.textContent="It's a draw! 🤝";}
+
+// AI: basic heuristic
+function scoreWindow(w,p){
+  const opp=p===1?2:1;
+  const pCount=w.filter(x=>x===p).length;
+  const eCount=w.filter(x=>x===0).length;
+  const oCount=w.filter(x=>x===opp).length;
+  if(oCount>0) return 0;
+  if(pCount===4) return 100;
+  if(pCount===3&&eCount===1) return 5;
+  if(pCount===2&&eCount===2) return 2;
+  return 0;
+}
+function scoreBoard(g,p){
+  let s=0;
+  // center
+  for(let r=0;r<ROWS;r++) if(g[r][3]===p) s+=3;
+  // horizontal
+  for(let r=0;r<ROWS;r++) for(let c=0;c<=COLS-4;c++) s+=scoreWindow([g[r][c],g[r][c+1],g[r][c+2],g[r][c+3]],p);
+  // vertical
+  for(let r=0;r<=ROWS-4;r++) for(let c=0;c<COLS;c++) s+=scoreWindow([g[r][c],g[r+1][c],g[r+2][c],g[r+3][c]],p);
+  // diag
+  for(let r=0;r<=ROWS-4;r++) for(let c=0;c<=COLS-4;c++) s+=scoreWindow([g[r][c],g[r+1][c+1],g[r+2][c+2],g[r+3][c+3]],p);
+  for(let r=3;r<ROWS;r++) for(let c=0;c<=COLS-4;c++) s+=scoreWindow([g[r][c],g[r-1][c+1],g[r-2][c+2],g[r-3][c+3]],p);
+  return s;
+}
+function validCols(g){return Array.from({length:COLS},(_,c)=>c).filter(c=>g[0][c]===0);}
+function dropRow(g,c){for(let r=ROWS-1;r>=0;r--) if(!g[r][c]) return r; return -1;}
+function cloneGrid(g){return g.map(r=>[...r]);}
+function isTerminal(g){
+  if(validCols(g).length===0) return true;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if(!g[r][c]) continue;
+    if(checkWinGrid(g,r,c,g[r][c])) return true;
+  }
+  return false;
+}
+function checkWinGrid(g,r,c,p){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(const[dr,dc]of dirs){let cnt=1;for(const s of[-1,1]){let nr=r+dr*s,nc=c+dc*s;while(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&g[nr][nc]===p){cnt++;nr+=dr*s;nc+=dc*s;}}if(cnt>=4)return true;}
+  return false;
+}
+
+function minimax(g,depth,alpha,beta,isMax){
+  if(depth===0||isTerminal(g)){
+    return scoreBoard(g,2)-scoreBoard(g,1);
+  }
+  const cols=validCols(g);
+  if(isMax){
+    let best=-Infinity;
+    for(const c of cols){
+      const ng=cloneGrid(g);const r=dropRow(ng,c);ng[r][c]=2;
+      const v=minimax(ng,depth-1,alpha,beta,false);
+      best=Math.max(best,v);alpha=Math.max(alpha,v);
+      if(alpha>=beta) break;
+    }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const c of cols){
+      const ng=cloneGrid(g);const r=dropRow(ng,c);ng[r][c]=1;
+      const v=minimax(ng,depth-1,alpha,beta,true);
+      best=Math.min(best,v);beta=Math.min(beta,v);
+      if(beta<=alpha) break;
+    }
+    return best;
+  }
+}
+
+function aiMove(){
+  if(gameOver) return;
+  const cols=validCols(grid);
+  // Check immediate win
+  for(const c of cols){const r=dropRow(grid,c);const ng=cloneGrid(grid);ng[r][c]=2;if(checkWinGrid(ng,r,c,2)){drop(c);return;}}
+  // Check block
+  for(const c of cols){const r=dropRow(grid,c);const ng=cloneGrid(grid);ng[r][c]=1;if(checkWinGrid(ng,r,c,1)){drop(c);return;}}
+  let best=-Infinity,bestCol=cols[Math.floor(Math.random()*cols.length)];
+  for(const c of cols){
+    const r=dropRow(grid,c);const ng=cloneGrid(grid);ng[r][c]=2;
+    const v=minimax(ng,4,-Infinity,Infinity,false);
+    if(v>best){best=v;bestCol=c;}
+  }
+  drop(bestCol);
+}
+
+buildBoard();
+
+document.getElementById('start-btn').addEventListener('click',()=>{ buildBoard(); init(); });
+document.getElementById('new-btn').addEventListener('click',()=>{ buildBoard(); init(); });
+</script>
+</body>
+</html>

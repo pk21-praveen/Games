@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Whack-a-Mole – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:2rem}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#hud{display:flex;gap:2rem;margin:.6rem 0 1.2rem;font-size:1rem}
+#hud span{color:#8888aa}
+#hud strong{color:#e0e0ff;font-size:1.2rem}
+#grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:min(90vw,360px)}
+.hole{background:#16213e;border:2px solid rgba(108,99,255,.2);border-radius:50%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:clamp(2rem,12vw,3.5rem);cursor:pointer;transition:transform .1s,background .1s;user-select:none;-webkit-user-select:none;position:relative;overflow:hidden;min-height:80px}
+.hole.active{background:#1a1a2e;border-color:rgba(108,99,255,.5)}
+.hole.active:hover{background:#1e1e35}
+.hole.whacked .mole-emoji{animation:whack .2s ease forwards}
+@keyframes whack{0%{transform:scale(1)}50%{transform:scale(1.4) rotate(20deg)}100%{transform:scale(0) translateY(20px)}}
+.mole-emoji{transition:transform .15s;display:block}
+.hole:not(.active) .mole-emoji{transform:translateY(100%);opacity:0}
+#msg{font-size:1rem;color:#8888aa;min-height:1.4em;margin:.5rem 0}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.65rem 1.8rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:.5rem}
+.btn:hover{opacity:.85}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:300px;line-height:1.5}
+#best-display{color:#ffbd2e;font-weight:700}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>🔨 Whack-a-Mole</h1>
+<div id="hud">
+  <div><span>Score </span><strong id="score">0</strong></div>
+  <div><span>Time </span><strong id="timer">60</strong>s</div>
+  <div><span>Best </span><strong id="best">0</strong></div>
+</div>
+<div id="grid"></div>
+<div id="msg">Hit as many moles as you can!</div>
+<button class="btn" id="start-btn">Start</button>
+
+<div id="overlay">
+  <h2>🔨 Whack-a-Mole</h2>
+  <p>Moles pop up randomly — click or tap to smash them before they disappear!<br><br>You have <strong>60 seconds</strong>.</p>
+  <p id="best-display"></p>
+  <button class="btn" id="ov-start">Start Game</button>
+</div>
+
+<script>
+const gridEl = document.getElementById('grid');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const bestEl = document.getElementById('best');
+const msgEl = document.getElementById('msg');
+const startBtn = document.getElementById('start-btn');
+const overlay = document.getElementById('overlay');
+const ovStart = document.getElementById('ov-start');
+const bestDisplay = document.getElementById('best-display');
+
+const MOLES = ['🐭','🐹','🐱','🦔','🐿️'];
+let best = parseInt(localStorage.getItem('wam_best')||'0');
+bestEl.textContent = best;
+bestDisplay.textContent = best>0 ? `Best: ${best}` : '';
+
+const holes = [];
+for (let i=0;i<9;i++) {
+  const h = document.createElement('div');
+  h.className = 'hole';
+  h.innerHTML = `<span class="mole-emoji">🐭</span>`;
+  h.dataset.i = i;
+  gridEl.appendChild(h);
+  holes.push(h);
+}
+
+let score=0, timeLeft=60, running=false;
+let moleTimers=[], mainTimer=null;
+
+function rand(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+
+function showMole(idx) {
+  if (!running) return;
+  const h = holes[idx];
+  if (h.classList.contains('active')) return;
+  const emoji = MOLES[Math.floor(Math.random()*MOLES.length)];
+  h.querySelector('.mole-emoji').textContent = emoji;
+  h.classList.add('active');
+  const stay = rand(700, 1600);
+  const t = setTimeout(()=>{ h.classList.remove('active','whacked'); }, stay);
+  moleTimers.push(t);
+}
+
+function scheduleNext() {
+  if (!running) return;
+  const delay = rand(200, 700);
+  const t = setTimeout(()=>{
+    const idx = rand(0,8);
+    showMole(idx);
+    scheduleNext();
+  }, delay);
+  moleTimers.push(t);
+}
+
+holes.forEach(h => {
+  function onHit(e) {
+    e.preventDefault();
+    if (!running || !h.classList.contains('active')) return;
+    h.classList.add('whacked');
+    h.classList.remove('active');
+    score++;
+    scoreEl.textContent = score;
+    if (score > best) { best = score; bestEl.textContent = best; localStorage.setItem('wam_best', best); }
+    msgEl.textContent = ['Nice!','Smash!','Got it!','Boom!','Yes!'][Math.floor(Math.random()*5)];
+  }
+  h.addEventListener('click', onHit);
+  h.addEventListener('touchstart', onHit, {passive:false});
+});
+
+function stopGame() {
+  running = false;
+  moleTimers.forEach(clearTimeout);
+  moleTimers = [];
+  clearInterval(mainTimer);
+  holes.forEach(h=>h.classList.remove('active','whacked'));
+}
+
+function startGame() {
+  stopGame();
+  score=0; timeLeft=60;
+  scoreEl.textContent=0; timerEl.textContent=60;
+  overlay.style.display='none';
+  running=true;
+  msgEl.textContent='Whack those moles!';
+  startBtn.textContent='Restart';
+  scheduleNext(); scheduleNext();
+  mainTimer = setInterval(()=>{
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    if (timeLeft<=0) {
+      stopGame();
+      bestDisplay.textContent = `Best: ${best}`;
+      const ovh2 = overlay.querySelector('h2');
+      ovh2.textContent = `Score: ${score}`;
+      overlay.querySelector('p').textContent = `Time's up! You whacked ${score} moles.`;
+      overlay.style.display='flex';
+    }
+  },1000);
+}
+
+startBtn.addEventListener('click', startGame);
+ovStart.addEventListener('click', startGame);
+</script>
+</body>
+</html>

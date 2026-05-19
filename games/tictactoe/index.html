@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tic-Tac-Toe – GameZone</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f0f1a;color:#e0e0ff;font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+.back{position:fixed;top:1rem;left:1rem;color:#6c63ff;text-decoration:none;font-size:.9rem;z-index:10;background:rgba(15,15,26,.8);padding:.3rem .7rem;border-radius:8px;border:1px solid rgba(108,99,255,.3)}
+.back:hover{color:#fff}
+h1{margin-top:3.5rem;font-size:1.8rem;background:linear-gradient(135deg,#6c63ff,#ff6584);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#status{margin:.5rem 0 1rem;font-size:1rem;color:#8888aa;min-height:1.4em;text-align:center}
+#board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(90vw,340px)}
+.cell{aspect-ratio:1;background:#16213e;border:2px solid rgba(108,99,255,.25);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:clamp(2.5rem,12vw,4rem);cursor:pointer;transition:background .15s,border-color .15s;user-select:none;-webkit-user-select:none;min-width:100px;min-height:100px}
+.cell:hover{background:#1a1a2e;border-color:rgba(108,99,255,.5)}
+.cell.x{color:#6c63ff}
+.cell.o{color:#ff6584}
+.cell.win{background:rgba(108,99,255,.2);border-color:#6c63ff}
+.cell.win.o{background:rgba(255,101,132,.2);border-color:#ff6584}
+#scores{display:flex;gap:2rem;margin:.5rem 0 1rem;font-size:.95rem}
+.sc{text-align:center}
+.sc span{display:block;font-size:1.4rem;font-weight:700;color:#6c63ff}
+.sc span.o{color:#ff6584}
+.sc span.d{color:#8888aa}
+.sc label{font-size:.75rem;color:#8888aa;text-transform:uppercase;letter-spacing:.5px}
+#controls{display:flex;gap:.8rem;margin-top:1rem;flex-wrap:wrap;justify-content:center}
+.btn{background:#6c63ff;color:#fff;border:none;padding:.55rem 1.4rem;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.85}
+.btn.sec{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);color:#6c63ff}
+#overlay{position:fixed;inset:0;background:rgba(15,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;z-index:20}
+#overlay h2{font-size:2rem;color:#6c63ff}
+#overlay p{color:#8888aa;text-align:center;max-width:300px}
+#choose{display:flex;gap:1rem}
+.choice{padding:.8rem 2rem;border-radius:10px;border:2px solid rgba(108,99,255,.4);background:transparent;color:#e0e0ff;font-size:1.5rem;font-weight:700;cursor:pointer;transition:background .15s}
+.choice:hover{background:rgba(108,99,255,.2)}
+</style>
+</head>
+<body>
+<a class="back" href="../../index.html">← Back</a>
+<h1>❌ Tic-Tac-Toe</h1>
+<div id="scores">
+  <div class="sc"><span id="w-score">0</span><label>Wins</label></div>
+  <div class="sc"><span class="d" id="d-score">0</span><label>Draws</label></div>
+  <div class="sc"><span class="o" id="l-score">0</span><label>Losses</label></div>
+</div>
+<div id="status">Choose your symbol to start</div>
+<div id="board"></div>
+<div id="controls">
+  <button class="btn sec" id="new-btn">New Game</button>
+</div>
+
+<div id="overlay">
+  <h2>❌ Tic-Tac-Toe</h2>
+  <p>Play against the AI. Choose your symbol:</p>
+  <div id="choose">
+    <button class="choice" id="pick-x">✕</button>
+    <button class="choice" id="pick-o">○</button>
+  </div>
+</div>
+
+<script>
+const board = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const overlay = document.getElementById('overlay');
+const wEl = document.getElementById('w-score');
+const dEl = document.getElementById('d-score');
+const lEl = document.getElementById('l-score');
+
+let cells, playerSymbol, aiSymbol, gameBoard, gameOver;
+let wins=0, draws=0, losses=0;
+
+const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function checkWinner(b) {
+  for (const [a,c,d] of WINS) if (b[a] && b[a]===b[c] && b[c]===b[d]) return {sym:b[a],line:[a,c,d]};
+  if (b.every(v=>v)) return {sym:'draw'};
+  return null;
+}
+
+function minimax(b, isMax, depth) {
+  const res = checkWinner(b);
+  if (res) { if (res.sym===aiSymbol) return 10-depth; if (res.sym===playerSymbol) return depth-10; return 0; }
+  let best = isMax ? -Infinity : Infinity;
+  for (let i=0;i<9;i++) {
+    if (b[i]) continue;
+    b[i] = isMax ? aiSymbol : playerSymbol;
+    const v = minimax(b, !isMax, depth+1);
+    b[i] = null;
+    best = isMax ? Math.max(best,v) : Math.min(best,v);
+  }
+  return best;
+}
+
+function bestMove() {
+  let best=-Infinity, move=null;
+  for (let i=0;i<9;i++) {
+    if (gameBoard[i]) continue;
+    gameBoard[i] = aiSymbol;
+    const v = minimax(gameBoard, false, 0);
+    gameBoard[i] = null;
+    if (v > best) { best=v; move=i; }
+  }
+  return move;
+}
+
+function renderBoard() {
+  const divs = board.querySelectorAll('.cell');
+  divs.forEach((d,i) => {
+    d.textContent = gameBoard[i]==='X'?'✕' : gameBoard[i]==='O'?'○' : '';
+    d.className = 'cell' + (gameBoard[i]==='X'?' x':gameBoard[i]==='O'?' o':'');
+  });
+}
+
+function startGame(player) {
+  playerSymbol = player; aiSymbol = player==='X'?'O':'X';
+  gameBoard = Array(9).fill(null); gameOver = false;
+  overlay.style.display = 'none';
+  statusEl.textContent = playerSymbol==='X' ? 'Your turn (✕)' : 'AI goes first…';
+  renderBoard();
+  if (playerSymbol === 'O') setTimeout(doAI, 400);
+}
+
+function doAI() {
+  if (gameOver) return;
+  const m = bestMove();
+  if (m===null) return;
+  gameBoard[m] = aiSymbol;
+  renderBoard();
+  const res = checkWinner(gameBoard);
+  if (res) { finish(res); return; }
+  statusEl.textContent = playerSymbol==='X' ? 'Your turn (✕)' : 'Your turn (○)';
+}
+
+function handleClick(i) {
+  if (gameOver || gameBoard[i]) return;
+  gameBoard[i] = playerSymbol;
+  renderBoard();
+  const res = checkWinner(gameBoard);
+  if (res) { finish(res); return; }
+  statusEl.textContent = 'AI thinking…';
+  setTimeout(doAI, 350);
+}
+
+function finish(res) {
+  gameOver = true;
+  if (res.sym==='draw') { draws++; dEl.textContent=draws; statusEl.textContent='It\'s a draw! 🤝'; }
+  else if (res.sym===playerSymbol) { wins++; wEl.textContent=wins; statusEl.textContent='You win! 🎉'; }
+  else { losses++; lEl.textContent=losses; statusEl.textContent='AI wins! 🤖'; }
+  if (res.line) {
+    res.line.forEach(i => {
+      const d = board.querySelectorAll('.cell')[i];
+      d.classList.add('win');
+      if (res.sym==='O') d.classList.add('o');
+    });
+  }
+}
+
+// Build grid
+for (let i=0;i<9;i++) {
+  const d = document.createElement('div');
+  d.className='cell'; d.dataset.i=i;
+  d.addEventListener('click', ()=>handleClick(+d.dataset.i));
+  board.appendChild(d);
+}
+
+document.getElementById('pick-x').addEventListener('click', ()=>startGame('X'));
+document.getElementById('pick-o').addEventListener('click', ()=>startGame('O'));
+document.getElementById('new-btn').addEventListener('click', ()=>{
+  overlay.style.display='flex';
+  const oh2 = overlay.querySelector('h2'); oh2.textContent='❌ Tic-Tac-Toe';
+  overlay.querySelector('p').textContent='Choose your symbol:';
+  overlay.querySelector('#choose').style.display='flex';
+});
+</script>
+</body>
+</html>

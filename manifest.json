@@ -1,7 +1,7 @@
 {
-  "name": "GameZone - 10 Classic Games",
+  "name": "GameZone - 20 Classic Games",
   "short_name": "GameZone",
-  "description": "Play 10 classic games offline - Tetris, Snake, 2048, Minesweeper, Chess, Pac-Man, Breakout, Memory, Sudoku, Space Invaders",
+  "description": "Play 20 classic games offline - Tetris, Snake, 2048, Minesweeper, Chess, Pac-Man, Breakout, Memory, Sudoku, Space Invaders, Pong, Tic-Tac-Toe, Flappy Bird and more",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
