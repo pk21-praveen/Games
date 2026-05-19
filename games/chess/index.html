@@ -460,7 +460,7 @@ function minimax(b,depth,alpha,beta,maximizing,color,ep,cas){
     return evaluate(b,color);
   }
   // Move ordering: captures first
-  moves.sort((a,b2)=>{const ta=b[a.tr][a.tc],tb=b[b2.tr][b2.tc];return (tb?PIECE_VAL[tb.type]:0)-(ta?PIECE_VAL[ta.type]:0);});
+  moves.sort((a,m2)=>{const ta=b[a.tr][a.tc],tb=b[m2.tr][m2.tc];return (tb?PIECE_VAL[tb.type]:0)-(ta?PIECE_VAL[ta.type]:0);});
   if(maximizing){
     let best=-Infinity;
     for(const m of moves){
@@ -507,7 +507,7 @@ async function aiMove(){
   const depth=parseInt(document.getElementById('sel-depth').value)||3;
   const moves=allMoves(board,aiColor,epTarget,castling);
   if(moves.length===0){aiThinking=false;return;}
-  moves.sort((a,b2)=>{const ta=board[a.tr][a.tc],tb=board[b2.tr][b2.tc];return (tb?PIECE_VAL[tb.type]:0)-(ta?PIECE_VAL[ta.type]:0);});
+  moves.sort((a,m2)=>{const ta=board[a.tr][a.tc],tb=board[m2.tr][m2.tc];return (tb?PIECE_VAL[tb.type]:0)-(ta?PIECE_VAL[ta.type]:0);});
   let bestMove=moves[0],bestScore=-Infinity;
   for(const m of moves){
     const nb=applyMove(board,m,epTarget,castling,aiColor,true);

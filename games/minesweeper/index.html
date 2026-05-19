@@ -167,9 +167,9 @@ function onChord(r,c){
   if(flagged!==cell.n)return;
   let hitMine=false;
   nb.forEach(([nr,nc])=>{
-    const nc_=board[nr][nc];
-    if(!nc_.flag&&!nc_.open){
-      if(nc_.mine){hitMine=true;nc_.open=true;getEl(nr,nc).classList.add('boom');getEl(nr,nc).textContent='💣';}
+    const neighborCell=board[nr][nc];
+    if(!neighborCell.flag&&!neighborCell.open){
+      if(neighborCell.mine){hitMine=true;neighborCell.open=true;getEl(nr,nc).classList.add('boom');getEl(nr,nc).textContent='💣';}
       else revealCell(nr,nc);
     }
   });

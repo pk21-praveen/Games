@@ -277,22 +277,21 @@ function ghostTarget(g){
   if(g.mode==='dead')return{row:13,col:13};
   if(g.mode==='scatter')return{row:g.homeRow,col:g.homeCol};
   // Chase
-  const pr=Math.floor(pac.y/TILE),pc_=Math.floor(pac.x/TILE);
-  if(g.name==='Blinky')return{row:pr,col:pc_};
-  if(g.name==='Pinky'){const ahead=4;return{row:pr+pac.dy*ahead,col:pc_+pac.dx*ahead};}
+  const pacRow=Math.floor(pac.y/TILE),pacCol=Math.floor(pac.x/TILE);
+  if(g.name==='Blinky')return{row:pacRow,col:pacCol};
+  if(g.name==='Pinky'){const ahead=4;return{row:pacRow+pac.dy*ahead,col:pacCol+pac.dx*ahead};}
   if(g.name==='Inky'){
     const blinky=ghosts[0];
     const br=Math.floor(blinky.y/TILE),bc=Math.floor(blinky.x/TILE);
-    const pivR=pr+pac.dy*2,pivC=pc_+pac.dx*2;
+    const pivR=pacRow+pac.dy*2,pivC=pacCol+pac.dx*2;
     return{row:2*pivR-br,col:2*pivC-bc};
   }
   if(g.name==='Clyde'){
-    const pr2=Math.floor(pac.y/TILE),pc2=Math.floor(pac.x/TILE);
     const gr=Math.floor(g.y/TILE),gc=Math.floor(g.x/TILE);
-    const dist=Math.abs(pr2-gr)+Math.abs(pc2-gc);
-    return dist>8?{row:pr2,col:pc2}:{row:g.homeRow,col:g.homeCol};
+    const dist=Math.abs(pacRow-gr)+Math.abs(pacCol-gc);
+    return dist>8?{row:pacRow,col:pacCol}:{row:g.homeRow,col:g.homeCol};
   }
-  return{row:pr,col:pc_};
+  return{row:pacRow,col:pacCol};
 }
 
 function moveGhost(g,spd,dt){
