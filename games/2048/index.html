@@ -611,7 +611,6 @@
       POS[i] = i * (cw + gap) + pad;
     }
 
-    Object.assign(window, { CELL_W: cw });
     for (const [id, el] of Object.entries(tileEls)) {
       el.style.width = cw + 'px';
       el.style.height = cw + 'px';

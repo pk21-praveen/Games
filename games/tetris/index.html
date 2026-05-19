@@ -439,7 +439,8 @@
       piece.y = 0;
     }
     // Reset hold piece shape to original
-    holdPiece.shape = PIECES.find(p => p.name === holdPiece.name).shape.map(r => [...r]);
+    const holdDef = PIECES.find(p => p.name === holdPiece.name);
+    if (holdDef) holdPiece.shape = holdDef.shape.map(r => [...r]);
   }
 
   function resetDropTimer() {

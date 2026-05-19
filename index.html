@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#6c63ff" />
+  <meta name="description" content="Play 10 classic games offline – Tetris, Snake, 2048, Minesweeper, Chess, Pac-Man, Breakout, Memory, Sudoku, Space Invaders" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/style.css" />
+  <title>GameZone – 10 Classic Games</title>
+</head>
+<body>
+
+<header>
+  <h1>🎮 GameZone</h1>
+  <p>10 classic games — play anywhere, even offline</p>
+  <div class="pwa-badge">⚡ PWA – Install &amp; Play Offline</div>
+</header>
+
+<main>
+  <div class="games-grid">
+
+    <a class="game-card" href="games/tetris/index.html">
+      <span class="game-icon">🟦</span>
+      <span class="game-name">Tetris</span>
+      <span class="game-desc">Stack falling tetrominoes to clear lines. How high can you score?</span>
+      <span class="game-tag classic">Classic</span>
+    </a>
+
+    <a class="game-card" href="games/snake/index.html">
+      <span class="game-icon">🐍</span>
+      <span class="game-name">Snake</span>
+      <span class="game-desc">Eat food, grow longer, don't bite yourself or the walls.</span>
+      <span class="game-tag arcade">Arcade</span>
+    </a>
+
+    <a class="game-card" href="games/2048/index.html">
+      <span class="game-icon">🔢</span>
+      <span class="game-name">2048</span>
+      <span class="game-desc">Merge tiles to reach the 2048 tile. A deceptively addictive puzzle.</span>
+      <span class="game-tag puzzle">Puzzle</span>
+    </a>
+
+    <a class="game-card" href="games/minesweeper/index.html">
+      <span class="game-icon">💣</span>
+      <span class="game-name">Minesweeper</span>
+      <span class="game-desc">Reveal squares without detonating hidden mines. Logic is your weapon.</span>
+      <span class="game-tag puzzle">Puzzle</span>
+    </a>
+
+    <a class="game-card" href="games/chess/index.html">
+      <span class="game-icon">♟️</span>
+      <span class="game-name">Chess</span>
+      <span class="game-desc">Challenge a minimax AI opponent at three difficulty levels.</span>
+      <span class="game-tag strategy">Strategy</span>
+    </a>
+
+    <a class="game-card" href="games/pacman/index.html">
+      <span class="game-icon">👾</span>
+      <span class="game-name">Pac-Man</span>
+      <span class="game-desc">Eat all dots while dodging colorful ghosts through the maze.</span>
+      <span class="game-tag arcade">Arcade</span>
+    </a>
+
+    <a class="game-card" href="games/breakout/index.html">
+      <span class="game-icon">🧱</span>
+      <span class="game-name">Breakout</span>
+      <span class="game-desc">Bounce a ball to smash bricks. Multiple levels with power-ups.</span>
+      <span class="game-tag action">Action</span>
+    </a>
+
+    <a class="game-card" href="games/memory/index.html">
+      <span class="game-icon">🃏</span>
+      <span class="game-name">Memory Match</span>
+      <span class="game-desc">Flip cards to find matching pairs. Train your memory muscles.</span>
+      <span class="game-tag puzzle">Puzzle</span>
+    </a>
+
+    <a class="game-card" href="games/sudoku/index.html">
+      <span class="game-icon">🔣</span>
+      <span class="game-name">Sudoku</span>
+      <span class="game-desc">Fill the 9×9 grid so every row, column and box contains 1–9.</span>
+      <span class="game-tag strategy">Strategy</span>
+    </a>
+
+    <a class="game-card" href="games/space-invaders/index.html">
+      <span class="game-icon">🚀</span>
+      <span class="game-name">Space Invaders</span>
+      <span class="game-desc">Defend Earth from wave after wave of descending alien invaders.</span>
+      <span class="game-tag action">Action</span>
+    </a>
+
+  </div>
+</main>
+
+<footer>
+  <p>GameZone &copy; 2024 &mdash; All games run 100% in your browser, no internet required.</p>
+</footer>
+
+<!-- PWA install banner -->
+<div id="install-banner">
+  <span>📲 Install GameZone for offline play</span>
+  <button id="install-btn">Install</button>
+  <button id="dismiss-btn" class="dismiss">✕</button>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
