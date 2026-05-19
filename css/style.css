@@ -172,7 +172,6 @@ footer {
   gap: 1rem;
   font-size: .9rem;
   flex-wrap: wrap;
-  white-space: normal;
 }
 #install-banner button {
   background: var(--accent);

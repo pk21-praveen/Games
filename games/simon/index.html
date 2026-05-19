@@ -74,17 +74,17 @@ const COLORS = ['#e74c3c','#2ecc71','#3498db','#f1c40f'];
 const FREQS = [261.6, 329.6, 392.0, 523.3]; // C4 E4 G4 C5
 
 let sequence=[], playerSeq=[], round=0, accepting=false;
-const ctx2 = new (window.AudioContext||window.webkitAudioContext)();
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
 
 function beep(idx, dur=0.3) {
-  const o = ctx2.createOscillator();
-  const g = ctx2.createGain();
-  o.connect(g); g.connect(ctx2.destination);
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
   o.frequency.value = FREQS[idx];
   o.type = 'sine';
-  g.gain.setValueAtTime(0.4, ctx2.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime+dur);
-  o.start(); o.stop(ctx2.currentTime+dur);
+  g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  o.start(); o.stop(audioCtx.currentTime+dur);
 }
 
 function flashPad(idx) {
